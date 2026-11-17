@@ -29,16 +29,9 @@ amcl:
     save_pose_rate: 0.5
     sigma_hit: 0.2
     tf_broadcast: true
-    # CHANGED 1.0 -> 0.3. TF was being extrapolated up to a full second; at
-    # 0.2 m/s that is 0.2 m of pose error injected into the goal checker.
-    transform_tolerance: 0.3
-    # CHANGED 0.2 -> 0.10 and 0.25 -> 0.10. AMCL only runs a filter update
-    # after this much motion. The whole final approach covers about 0.5 m, so
-    # at 0.25 m the filter updated roughly twice during the part of the
-    # mission where pose accuracy decides success. Measured
-    # localization_error_m was 0.27 against a 0.35 m gate.
-    update_min_a: 0.10
-    update_min_d: 0.10
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.25
     z_hit: 0.5
     z_max: 0.05
     z_rand: 0.5
@@ -47,9 +40,9 @@ amcl:
     set_initial_pose: true
     initial_pose:
       x: 0.0
-      y: -8.5
+      y: 0.0
       z: 0.0
-      yaw: 1.5708
+      yaw: 0.0
 
 behavior_server:
   ros__parameters:
@@ -83,7 +76,7 @@ bt_navigator:
     enable_groot_monitoring: True
     groot_zmq_publisher_port: 1666
     groot_zmq_server_port: 1667
-    default_bt_xml_filename: "/home/forough/phd_projects/online_tuner/src/rct_data_collector/behavior_trees/navigate_w_replanning_only.xml"   #"navigate_w_replanning_and_recovery.xml"
+    default_bt_xml_filename: "navigate_w_replanning_and_recovery.xml"
     plugin_lib_names:
     - nav2_compute_path_to_pose_action_bt_node
     - nav2_compute_path_through_poses_action_bt_node
@@ -127,6 +120,7 @@ bt_navigator:
     - nav2_wait_cancel_bt_node
     - nav2_spin_cancel_bt_node
     - nav2_back_up_cancel_bt_node
+    - nav2_drive_on_heading_cancel_bt_node
 
 bt_navigator_navigate_through_poses_rclcpp_node:
   ros__parameters:
@@ -143,41 +137,76 @@ controller_server:
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 2.0
+    failure_tolerance: 0.3
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
     odom_topic: /mobile_base_controller/odom
-    speed_limit_topic: "/speed_limit"
 
     # Progress checker parameters
     progress_checker:
-      plugin: "nav2_controller::PoseProgressChecker"
-      required_movement_radius: 0.15
-      required_movement_angle: 0.4      # rad; in-place rotation now counts as progress
-      movement_time_allowance: 15.0
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
     # Goal checker parameters
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.35
-      yaw_goal_tolerance: 0.9
+      yaw_goal_tolerance: 0.65
       stateful: True
-      latch_xy_goal_tolerance: True
+    # DWB parameters
     FollowPath:
+      # plugin: "dwb_core::DWBLocalPlanner"
+      # debug_trajectory_details: True
+      # min_vel_x: 0.0
+      # min_vel_y: 0.0
+      # max_vel_x: 1.00
+      # max_vel_y: 0.0
+      # max_vel_theta: 1.00
+      # min_speed_xy: 0.0
+      # max_speed_xy: 1.00
+      # min_speed_theta: 0.0
+      # acc_lim_x: 2.5
+      # acc_lim_y: 0.0
+      # acc_lim_theta: 3.2
+      # decel_lim_x: -2.5
+      # decel_lim_y: 0.0
+      # decel_lim_theta: -3.2
+      # vx_samples: 20
+      # vy_samples: 5
+      # vtheta_samples: 20
+      # sim_time: 1.7
+      # linear_granularity: 0.05
+      # angular_granularity: 0.025
+      # transform_tolerance: 0.2
+      # xy_goal_tolerance: 0.25
+      # trans_stopped_velocity: 0.25
+      # short_circuit_trajectory_evaluation: True
+      # stateful: True
+      # critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      # BaseObstacle.scale: 0.02
+      # PathAlign.scale: 32.0
+      # PathAlign.forward_point_distance: 0.1
+      # GoalAlign.scale: 24.0
+      # GoalAlign.forward_point_distance: 0.1
+      # PathDist.scale: 32.0
+      # GoalDist.scale: 24.0
+      # RotateToGoal.scale: 32.0
+      # RotateToGoal.slowing_factor: 5.0
+      # RotateToGoal.lookahead_time: -1.0
       plugin: "nav2_mppi_controller::MPPIController"
-      latch_xy_goal_tolerance: True
       time_steps: 56
       model_dt: 0.05
       batch_size: 2000
-      vx_std: 0.35
+      vx_std: 0.2
       vy_std: 0.2
-      wz_std: 0.2
-      vx_max: 0.7
+      wz_std: 0.4
+      vx_max: 0.5
       vx_min: -0.35
       vy_max: 0.5
       wz_max: 1.9
       ax_max: 3.0
-      ax_min: -0.55
+      ax_min: -3.0
       ay_min: -3.0
       ay_max: 3.0
       az_max: 3.5
@@ -185,6 +214,8 @@ controller_server:
       temperature: 0.3
       gamma: 0.015
       motion_model: "DiffDrive"
+      # DiffDrive:
+      #   plugin: "mppi::DiffDriveMotionModel"
       visualize: false
       critic_index_to_visualize: 0
       reset_period: 1.0 # (only in Humble)
@@ -193,12 +224,6 @@ controller_server:
       TrajectoryVisualizer:
         trajectory_step: 5
         time_step: 3
-      # NOTE: TrajectoryValidator is not part of the Humble MPPI controller as
-      # far as I can tell -- verify with
-      #   ros2 param get /controller_server FollowPath.TrajectoryValidator.plugin
-      # If it errors, this block is dead config and collision_lookahead_time
-      # is not doing anything. Left in place rather than deleted so you can
-      # check before removing.
       TrajectoryValidator:
         plugin: "mppi::DefaultOptimalTrajectoryValidator"
         collision_lookahead_time: 2.0
@@ -207,52 +232,38 @@ controller_server:
       ConstraintCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 1.0
+        cost_weight: 4.0
       GoalCritic:
         enabled: true
         cost_power: 1
-        # CHANGED 5.0 -> 20.0. Inside 1.0 m the old weights gave yaw error a
-        # 6:1 advantage over distance to goal. A differential-drive robot
-        # cannot close distance without perturbing heading, so holding still
-        # was the minimum-cost action. That is the parked endgame in the
-        # decision logs: d_goal frozen at 0.70-0.95 m for 15-30 s.
-        cost_weight: 20.0
+        cost_weight: 5.0
         threshold_to_consider: 1.4
-      GoalAngleCritic: #TODO: Add this critics as one of the config space variable
+      GoalAngleCritic:
         enabled: true
         cost_power: 1
-        # CHANGED 30.0 -> 10.0. The old comment justified 30 as needing to
-        # exceed the tuner's max CostCritic weight of 20, but CostCritic
-        # already backs off inside near_goal_distance: 1.0, so the two never
-        # compete where it matters. Position leads until the robot is inside
-        # the xy tolerance; yaw takes over after.
-        cost_weight: 10.0
-        threshold_to_consider: 1.0
+        cost_weight: 3.0
+        threshold_to_consider: 0.5
       PreferForwardCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 30.0
+        cost_weight: 5.0
         threshold_to_consider: 0.5
-      # NOTE: ObstaclesCritic is configured below but is NOT in the critics
-      # list above, so none of this is loaded. CostCritic supersedes it.
-      # Left commented to avoid the impression that inflation_radius: 0.35
-      # here is in effect -- it is not.
-      # ObstaclesCritic:
-      #   enabled: true
-      #   cost_power: 1
-      #   repulsion_weight: 1.5
-      #   critical_weight: 20.0
-      #   consider_footprint: true
-      #   collision_cost: 10000.0
-      #   collision_margin_distance: 0.1
-      #   near_goal_distance: 0.5
-      #   inflation_radius: 0.35 # (only in Humble)
-      #   cost_scaling_factor: 10.0 # (only in Humble)
+      ObstaclesCritic:
+        enabled: true
+        cost_power: 1
+        repulsion_weight: 1.5
+        critical_weight: 20.0
+        consider_footprint: false
+        collision_cost: 10000.0
+        collision_margin_distance: 0.1
+        near_goal_distance: 0.5
+        inflation_radius: 0.35 # (only in Humble)
+        cost_scaling_factor: 10.0 # (only in Humble)
       CostCritic:
         enabled: true
         cost_power: 1
         cost_weight: 3.81
-        critical_cost: 253.0
+        critical_cost: 300.0
         consider_footprint: true
         collision_cost: 1000000.0
         near_goal_distance: 1.0
@@ -261,7 +272,7 @@ controller_server:
         enabled: true
         cost_power: 1
         cost_weight: 14.0
-        max_path_occupancy_ratio: 0.25
+        max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
         offset_from_furthest: 20
@@ -269,7 +280,7 @@ controller_server:
       PathFollowCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 15.0
+        cost_weight: 5.0
         offset_from_furthest: 5
         threshold_to_consider: 1.4
       PathAngleCritic:
@@ -299,11 +310,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: true
       # robot_radius: 0.275
-      # NOTE: circumscribed radius of this polygon is 0.275 m, but the paper
-      # reports 0.325 m tucked and 0.847 m carry about base_link. Reconcile
-      # before submission -- one of the two numbers is wrong. The tuner
-      # overrides this at runtime, so it only sets the pre-trial value.
-      footprint: "[[-0.275, 0.000], [-0.238, -0.138], [-0.138, -0.238], [-0.000, -0.275], [0.138, -0.238], [0.209, -0.181], [0.238, -0.138], [0.275, 0.000], [0.252, 0.182], [0.217, 0.242], [0.000, 0.275], [-0.138, 0.238], [-0.238, 0.138]]" # this one is for the home pose arm
+      footprint: "[[-0.289, -0.000], [-0.248, -0.140], [0.112, -0.580], [0.211, -0.675], [0.403, -0.723], [0.552, -0.723], [0.593, -0.647], [0.632, -0.455], [0.638, -0.323], [0.604, -0.066], [0.519, 0.131], [0.438, 0.248], [0.273, 0.304], [-0.001, 0.281], [-0.144, 0.249], [-0.248, 0.144]]"          #"[[-0.275, 0.000], [-0.238, -0.138], [-0.138, -0.238], [-0.000, -0.275], [0.138, -0.238], [0.209, -0.181], [0.238, -0.138], [0.275, 0.000], [0.252, 0.182], [0.217, 0.242], [0.000, 0.275], [-0.138, 0.238], [-0.238, 0.138]]" # this one is for the home pose arm
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -326,7 +333,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.5
+        cost_scaling_factor: 10.0
         inflation_radius: 0.55
       always_send_full_costmap: True
 
@@ -339,22 +346,15 @@ local_costmap:
       robot_base_frame: base_link
       use_sim_time: true
       rolling_window: true
-      # CHANGED 3 -> 6 (both). MPPI looks ahead
-      # time_steps(56) x model_dt(0.05) x vx_max(0.7) = 1.96 m, but a 3 m
-      # rolling window centred on the robot only covers 1.5 m in any
-      # direction. Rollouts were running off the edge of the costmap that
-      # CostCritic scores against. 6 m covers the horizon with margin.
-      # Cost: 4x the cells at the same 0.05 m resolution. If the update rate
-      # suffers, drop resolution to 0.075 rather than shrinking the window.
-      width: 5
-      height: 5
+      width: 3
+      height: 3
       resolution: 0.05
       # robot_radius: 0.275
-      footprint: "[[-0.275, 0.000], [-0.238, -0.138], [-0.138, -0.238], [-0.000, -0.275], [0.138, -0.238], [0.209, -0.181], [0.238, -0.138], [0.275, 0.000], [0.252, 0.182], [0.217, 0.242], [0.000, 0.275], [-0.138, 0.238], [-0.238, 0.138]]"
+      footprint: "[[-0.289, -0.000], [-0.248, -0.140], [0.112, -0.580], [0.211, -0.675], [0.403, -0.723], [0.552, -0.723], [0.593, -0.647], [0.632, -0.455], [0.638, -0.323], [0.604, -0.066], [0.519, 0.131], [0.438, 0.248], [0.273, 0.304], [-0.001, 0.281], [-0.144, 0.249], [-0.248, 0.144]]"             #"[[-0.275, 0.000], [-0.238, -0.138], [-0.138, -0.238], [-0.000, -0.275], [0.138, -0.238], [0.209, -0.181], [0.238, -0.138], [0.275, 0.000], [0.252, 0.182], [0.217, 0.242], [0.000, 0.275], [-0.138, 0.238], [-0.238, 0.138]]"
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.5
+        cost_scaling_factor: 10.0
         inflation_radius: 0.55
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -392,8 +392,6 @@ map_saver:
 map_server:
   ros__parameters:
     use_sim_time: true
-    # NOTE: Default map file. Confirm the launch file overrides
-    # this if running against a different world map.
     yaml_filename: "pal_office.yaml"
 
 planner_server:
@@ -414,7 +412,7 @@ planner_server:
       reverse_penalty: 2.0
       change_penalty: 0.05
       non_straight_penalty: 1.05
-      cost_penalty: 5.0
+      cost_penalty: 2.0
       rotation_penalty: 2.0
       smooth_path: true
       smoother:
@@ -424,7 +422,7 @@ planner_server:
         tolerance: 1.0e-10
         do_refinement: true
         refinement_num: 2
-
+        
 slam_toolbox:
   ros__parameters:
     use_sim_time: true
@@ -442,6 +440,13 @@ slam_toolbox:
     base_frame: base_footprint
     scan_topic: /scan_raw
     mode: mapping
+
+    # if you'd like to immediately start continuing a map at a given pose
+    # or at the dock, but they are mutually exclusive, if pose is given
+    # will use pose
+    #map_file_name: test_steve
+    # map_start_pose: [0.0, 0.0, 0.0]
+    #map_start_at_dock: true
 
     debug_logging: false
     throttle_scans: 1
@@ -462,19 +467,19 @@ slam_toolbox:
     minimum_travel_heading: 0.5
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0
-    link_match_minimum_response_fine: 0.1
+    link_match_minimum_response_fine: 0.1  
     link_scan_maximum_distance: 1.5
     loop_search_maximum_distance: 3.0
-    do_loop_closing: true
-    loop_match_minimum_chain_size: 10
-    loop_match_maximum_variance_coarse: 3.0
-    loop_match_minimum_response_coarse: 0.35
+    do_loop_closing: true 
+    loop_match_minimum_chain_size: 10           
+    loop_match_maximum_variance_coarse: 3.0  
+    loop_match_minimum_response_coarse: 0.35    
     loop_match_minimum_response_fine: 0.45
 
     # Correlation Parameters - Correlation Parameters
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
-    correlation_search_space_smear_deviation: 0.1
+    correlation_search_space_smear_deviation: 0.1 
 
     # Correlation Parameters - Loop Closure Parameters
     loop_search_space_dimension: 8.0
@@ -482,12 +487,12 @@ slam_toolbox:
     loop_search_space_smear_deviation: 0.03
 
     # Scan Matcher Parameters
-    distance_variance_penalty: 0.5
-    angle_variance_penalty: 1.0
+    distance_variance_penalty: 0.5      
+    angle_variance_penalty: 1.0    
 
-    fine_search_angle_offset: 0.00349
-    coarse_search_angle_offset: 0.349
-    coarse_angle_resolution: 0.0349
+    fine_search_angle_offset: 0.00349     
+    coarse_search_angle_offset: 0.349   
+    coarse_angle_resolution: 0.0349        
     minimum_angle_penalty: 0.9
     minimum_distance_penalty: 0.5
     use_response_expansion: true
@@ -499,11 +504,22 @@ smoother_server:
 velocity_smoother:
   ros__parameters:
     use_sim_time: true
-    max_velocity: [1.0, 0.0, 2.5]
-    min_velocity: [-0.5, 0.0, -2.5]
-    max_accel: [2.5, 0.0, 3.2]
-    max_decel: [-2.5, 0.0, -3.2]
-    odom_topic: "/mobile_base_controller/odom"
+
+# velocity_smoother:
+#   ros__parameters:
+#     use_sim_time: False
+#     use_realtime_priority: false
+#     smoothing_frequency: 20.0
+#     scale_velocities: false 
+#     feedback: "OPEN_LOOP"
+#     max_velocity: [1.0, 0.0, 2.0] ## [0.26 ,0 ,1.0]
+#     min_velocity: [-0.3, 0.0, -2.0]
+#     max_accel: [0.9, 0.0, 2.5] ## [2.5, 0.0, 3.2]
+#     max_decel: [-2.2, 0.0, -2.5] ## [-2.5, 0.0, -3.2]
+#     odom_topic: "odom"
+#     odom_duration: 0.1
+#     deadband_velocity: [0.0, 0.0, 0.0]
+#     velocity_timeout: 1.0
 
 waypoint_follower:
   ros__parameters:
